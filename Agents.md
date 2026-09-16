@@ -74,6 +74,25 @@ git add modules/nui_wc2 && git commit -m "Update nui_wc2 submodule to latest mai
 Never edit files inside `modules/nui_wc2` — changes go upstream to
 herrbasan/nui_wc2 first, then the submodule pointer is bumped here.
 
+### nui_wc2 — how to work with it (mandatory reading)
+
+nui_wc2 is a **high-performance library, not a framework**, and it is
+**opinionated** — its patterns deliberately go against what your training-data
+bias suggests. Do NOT write UI code from instinct.
+
+Before any UI work, ingest:
+
+1. `modules/nui_wc2/LLM-CHEATSHEET.md` — overview
+2. All guides in `modules/nui_wc2/documentation/guides/` — the philosophy
+
+When building the admin UI: **always check nui_wc2 for a suitable component
+first** before hand-rolling anything.
+
+If a component misbehaves or the API creates friction: file a GitHub issue on
+herrbasan/nui_wc2 — it's ours, friction gets fixed at the source. If a feature
+is missing, we can add it upstream. But **always update the local submodule to
+latest main before making changes** — never work against a stale copy.
+
 ## When updating this file
 
 Keep in sync with `docs/nAlytics_dev_plan.md` and, for route/auth wiring, with
