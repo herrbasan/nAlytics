@@ -1,0 +1,6 @@
+/* nAlytics app styles — layout-only, scoped to app pages. Never style NUI components. */
+
+/* Sidebar contents: standard spacing (NUI sidebars are layout-agnostic) */
+.page-nav {
+    padding: var(--nui-space);
+}

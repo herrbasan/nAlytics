@@ -1,0 +1,58 @@
+<div class="page-overview">
+    <header style="margin-bottom: var(--nui-space-double)">
+        <h1>Overview</h1>
+        <p class="lead">Pageviews, visits and the realtime feed per site.</p>
+    </header>
+
+    <section>
+        <div style="display: flex; gap: var(--nui-space); align-items: center; flex-wrap: wrap;">
+            <nui-select id="site-select" placeholder="Site">
+                <select>
+                    <option value="">All sites</option>
+                </select>
+            </nui-select>
+            <nui-button data-action="refresh-summary" id="refresh-btn">
+                <nui-icon name="refresh" decorative></nui-icon>
+                <button type="button">Refresh</button>
+            </nui-button>
+        </div>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <nui-layout type="grid" columns="3" gap="1rem">
+            <nui-card>
+                <h2 style="margin-top: 0">Pageviews</h2>
+                <p id="stat-total" style="font-size: var(--font-size-xlarge); margin: 0">–</p>
+            </nui-card>
+            <nui-card>
+                <h2 style="margin-top: 0">Rejects</h2>
+                <p id="stat-rejects" style="font-size: var(--font-size-xlarge); margin: 0">–</p>
+            </nui-card>
+            <nui-card>
+                <h2 style="margin-top: 0">Days</h2>
+                <p id="stat-days" style="font-size: var(--font-size-xlarge); margin: 0">–</p>
+            </nui-card>
+        </nui-layout>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <h2>Top paths</h2>
+        <nui-table id="top-paths">
+            <table>
+                <thead><tr><th>Path</th><th>Views</th></tr></thead>
+                <tbody><!-- filled by init --></tbody>
+            </table>
+        </nui-table>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <h2>Realtime</h2>
+        <p class="lead" id="ticker-empty">Waiting for pings…</p>
+        <nui-table id="ticker" hidden>
+            <table>
+                <thead><tr><th>Time</th><th>Site</th><th>Path</th><th>Country</th><th>Device</th><th>Referrer</th></tr></thead>
+                <tbody><!-- filled by SSE --></tbody>
+            </table>
+        </nui-table>
+    </section>
+</div>

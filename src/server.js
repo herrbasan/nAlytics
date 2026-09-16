@@ -122,15 +122,45 @@ function handleSse(req, res) {
     req.on('close', () => sseClients.delete(res));
 }
 
-function handleDashboard(res) {
-    const uiPath = path.join(__dirname, 'ui', 'index.html');
-    if (!fs.existsSync(uiPath)) {
-        res.writeHead(501, { 'Content-Type': 'text/plain' });
-        res.end('dashboard UI not built yet');
+// ---- static UI serving ----
+
+const MIME = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon',
+    '.woff2': 'font/woff2',
+    '.md': 'text/markdown; charset=utf-8'
+};
+
+/** Serve a file from `rootDir` at `subpath` — traversal-safe, 404 when missing. */
+function serveStatic(res, rootDir, subpath) {
+    const resolved = path.resolve(rootDir, '.' + path.sep + subpath.replace(/^\/+|\/+$/g, ''));
+    const root = path.resolve(rootDir);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+        sendJson(res, 403, { error: 'forbidden' });
         return;
     }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(fs.readFileSync(uiPath));
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+        sendJson(res, 404, { error: 'not found' });
+        return;
+    }
+    res.writeHead(200, {
+        'Content-Type': MIME[path.extname(resolved).toLowerCase()] || 'application/octet-stream',
+        'Cache-Control': 'no-store'
+    });
+    res.end(fs.readFileSync(resolved));
+}
+
+const UI_DIR = path.join(__dirname, 'ui');                       // src/ui
+const NUI_DIR = path.join(__dirname, '..', 'modules', 'nui_wc2', 'NUI'); // submodule library
+
+function handleDashboard(res) {
+    serveStatic(res, UI_DIR, 'index.html');
 }
 
 // ---- server ----
@@ -166,6 +196,8 @@ function start() {
             sendJson(res, 200, { configured: [...new Set(config.origins.values())], known: analytics.knownSites(db) });
             return;
         }
+        if (route.startsWith('/analytics/nui/')) { serveStatic(res, NUI_DIR, route.slice('/analytics/nui'.length)); return; }
+        if (route.startsWith('/analytics/app/')) { serveStatic(res, UI_DIR, route.slice('/analytics/app'.length)); return; }
         sendJson(res, 404, { error: 'not found' });
     });
 
