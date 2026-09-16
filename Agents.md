@@ -56,6 +56,24 @@ decisions. This file is the summary; the plan is the source.
 `git submodule status` at session start; surface upstream drift, never
 auto-update. Bug fixes belong upstream in the owning repo.
 
+### nui_wc2 — always on latest main
+
+The UI is based on our nui_wc2 library. The submodule is registered with
+`-b main` and must always point at the latest upstream `main` — nAlytics never
+carries local commits or pins old revisions of it.
+
+Update check at session start (and before any UI work):
+
+```
+git -C modules/nui_wc2 fetch origin
+git -C modules/nui_wc2 status -sb        # behind origin/main → update
+git -C modules/nui_wc2 merge --ff-only origin/main
+git add modules/nui_wc2 && git commit -m "Update nui_wc2 submodule to latest main"
+```
+
+Never edit files inside `modules/nui_wc2` — changes go upstream to
+herrbasan/nui_wc2 first, then the submodule pointer is bumped here.
+
 ## When updating this file
 
 Keep in sync with `docs/nAlytics_dev_plan.md` and, for route/auth wiring, with
