@@ -159,8 +159,8 @@ nAlytics/
 ```
 
 - Node + nDB (submodule `modules/nDB`) + nLogger. Zero other dependencies.
-- Port: pick a free localhost port (nPort:3199, MCP:3100, Gateway:3400,
-  nMedia:3500, nVoice:2244 taken). E.g. **3110** — confirm nothing collides.
+- Port: **3110** (confirmed free; nPort:3199, MCP:3100, Gateway:3400, nMedia:3500,
+  nVoice:2244 taken).
 - GeoIP: `data/geoip-country-ipv4.csv` (CC0, github.com/sapics/ip-location-db,
   geolite2-derived, 358k ranges, binary search). Refresh via script. Missing
   file → country `??` (tolerated, logged).
@@ -180,6 +180,11 @@ referrer → registrable domain, query stripped; everything else optional/coerce
 Beacon ALWAYS answers 204, even on reject (client never learns, never retries).
 
 ## Extraction steps (from nPort)
+
+Status 2026-09-16: steps 1–3 DONE (store extracted with site/minute/per-site-visit
+schema + SSE events, server on 127.0.0.1:3110, test-store green). Migration
+decision: **start fresh** — the few days of raum.com pre-extraction data are not
+worth a backfill. Steps 4–5 (nPort rewiring, deploy) pending.
 
 1. Create this repo; copy store/routes from nPort `src/auth/server/analytics-*`.
 2. Apply schema changes: site dimension (Origin-derived), minute buckets,
