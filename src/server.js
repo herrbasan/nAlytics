@@ -59,6 +59,22 @@ function referrerDomain(ref) {
     try { return new URL(ref).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
+/**
+ * Client IP for GeoIP + visit-hash. Behind nPort (Caddy reverse proxy), the
+ * socket address is always 127.0.0.1 — the real client is in X-Forwarded-For
+ * (leftmost entry; browsers cannot forge the header, Caddy appends the real IP).
+ * Safe to trust because nAlytics binds localhost-only: the only possible sender
+ * is nPort on this machine (or local dev).
+ */
+function clientIp(req) {
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string') {
+        const first = xff.split(',')[0].trim();
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(first)) return first;
+    }
+    return (req.socket.remoteAddress || '').replace('::ffff:', '') || '0.0.0.0';
+}
+
 // ---- routes ----
 
 function handlePing(req, res, ctx) {
@@ -98,7 +114,7 @@ function handlePing(req, res, ctx) {
 
         const event = ctx.analytics.recordPing(ctx.db, ctx.log, {
             site: ctx.config.origins.get(origin),
-            ip: (req.socket.remoteAddress || '').replace('::ffff:', '') || '0.0.0.0',
+            ip: clientIp(req),
             ua: req.headers['user-agent'] || '',
             payload: { path: p, refd: referrerDomain(payload.referrer) }
         });
