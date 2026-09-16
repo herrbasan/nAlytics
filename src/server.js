@@ -16,6 +16,21 @@ import ndb from '../modules/nDB/napi/index.js';
 import { loadConfig, ROOT } from './config.js';
 import { initAnalytics } from './store.js';
 
+// Last-resort crash visibility: long-running ingest service must die LOUDLY.
+// Log the reason, flush, then exit non-zero. Never swallow.
+process.on('uncaughtException', (err) => {
+    try {
+        console.error('UNCAUGHT EXCEPTION:', err && err.stack || err);
+    } catch { /* nothing left to try */ }
+    process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+    try {
+        console.error('UNHANDLED REJECTION:', reason && reason.stack || reason);
+    } catch { /* nothing left to try */ }
+    process.exit(1);
+});
+
 const { Database } = ndb;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
