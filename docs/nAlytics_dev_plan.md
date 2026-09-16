@@ -172,11 +172,20 @@ fetch('https://<edge-host>/analytics/ping', {
   method: 'POST',
   keepalive: true,
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ path: location.pathname, referrer: document.referrer || '', lang: navigator.language, w: innerWidth })
+  body: JSON.stringify({
+    path: location.pathname, referrer: document.referrer || '',
+    lang: navigator.language, w: innerWidth, h: innerHeight,
+    dpr: devicePixelRatio, conn: navigator.connection?.effectiveType
+  })
 });
 ```
 Payload validation (server): `path` required, starts with `/`, ≤512 chars;
 referrer → registrable domain, query stripped; everything else optional/coerced.
+`lang`/`w`/`h`/`dpr`/`conn` are coarse client-capability dims — normalized
+server-side to population-large buckets (primary language subtag, viewport
+rounded to 100px, dpr to 0.5, conn enum) and stored as separate `dim`
+histogram docs, NOT in the pv key. Nothing high-cardinality or
+fingerprint-grade is accepted.
 Beacon ALWAYS answers 204, even on reject (client never learns, never retries).
 
 ## Extraction steps (from nPort)

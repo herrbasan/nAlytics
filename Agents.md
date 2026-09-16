@@ -27,9 +27,11 @@ decisions. This file is the summary; the plan is the source.
 - Dashboard served at `GET /analytics`. NUI app (nui_wc2 submodule) — read
   `modules/nui_wc2/LLM-CHEATSHEET.md` before writing UI code.
 - Data: pre-aggregated nDB counter docs, no raw event log. Key:
-  `site|date|hh:mm|path|refd|cc|device|browser` + `visit`/`salt`/`anmeta` docs.
-  Site comes from the Origin header (never the payload). Time bucket is minute.
-  Dimensions not in the key cannot be sliced later — change keys consciously.
+  `site|date|hh:mm|path|refd|cc|device|browser` + `visit`/`salt`/`anmeta` docs
+  + `dim` histogram docs (lang/size/dpr/conn — coarse buckets only, never in
+  the pv key). Site comes from the Origin header (never the payload). Time
+  bucket is minute. Dimensions not in the key cannot be sliced later — change
+  keys consciously.
 - GeoIP: `data/geoip-country-ipv4.csv`, CC0 (sapics/ip-location-db), binary
   search; missing file → country `??`. Refresh script in `scripts/`.
 - Zero dependencies beyond Node + nDB + nLogger (+ nui_wc2 for UI).

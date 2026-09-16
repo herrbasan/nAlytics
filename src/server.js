@@ -116,7 +116,11 @@ function handlePing(req, res, ctx) {
             site: ctx.config.origins.get(origin),
             ip: clientIp(req),
             ua: req.headers['user-agent'] || '',
-            payload: { path: p, refd: referrerDomain(payload.referrer) }
+            payload: {
+                path: p, refd: referrerDomain(payload.referrer),
+                // Coarse client capabilities — normalized to buckets in the store.
+                dims: { lang: payload.lang, w: payload.w, h: payload.h, dpr: payload.dpr, conn: payload.conn }
+            }
         });
         sseBroadcast(event);
         done();
@@ -210,6 +214,17 @@ function start() {
         }
         if (route === '/analytics/sites') {
             sendJson(res, 200, { configured: [...new Set(config.origins.values())], known: analytics.knownSites(db) });
+            return;
+        }
+        if (route === '/analytics/dims') {
+            const dim = url.searchParams.get('dim');
+            if (!['lang', 'size', 'dpr', 'conn'].includes(dim)) {
+                sendJson(res, 400, { error: 'dim must be one of lang|size|dpr|conn' });
+                return;
+            }
+            sendJson(res, 200, analytics.dimHistogram(db,
+                url.searchParams.get('from'), url.searchParams.get('to'),
+                url.searchParams.get('site'), dim));
             return;
         }
         if (route.startsWith('/analytics/nui/')) { serveStatic(res, NUI_DIR, route.slice('/analytics/nui'.length)); return; }

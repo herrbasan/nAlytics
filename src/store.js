@@ -12,6 +12,11 @@
  *     Daily salt for visit_hash; non-linkable across days by design.
  *   { type:'anmeta', name:'rejects', count }
  *     Malformed/disallowed-payload counter (contents never logged).
+ *   { type:'dim', site, date:'<date>', dim:'lang'|'size'|'dpr'|'conn', value, count }
+ *     Coarse client-capability histograms: browser language (primary subtag),
+ *     viewport size (rounded to 100px), device pixel ratio (rounded to 0.5),
+ *     connection type (effectiveType). Separate docs — never in the pv key —
+ *     so they stay independently sliceable and coarse by design.
  *
  * You can only slice by dimensions baked into the key — change keys consciously.
  *
@@ -87,6 +92,50 @@ function classifyUa(ua) {
     return { device, browser };
 }
 
+// ---- Coarse client dimensions (anonymous by construction: coarse, high-population buckets) ----
+
+/** Browser language — primary subtag only ('de-AT' → 'de'). Never the full list. */
+function normLang(l) {
+    const m = /^[\s"']*([a-zA-Z]{2,3})\b/.exec(String(l || ''));
+    return m ? m[1].toLowerCase() : '??';
+}
+
+/** Viewport size — rounded to 100px steps so buckets stay population-large. */
+function normSize(w, h) {
+    const W = Math.round(Number(w) / 100) * 100;
+    const H = Math.round(Number(h) / 100) * 100;
+    if (!Number.isFinite(W) || !Number.isFinite(H) || W < 100 || W > 8000 || H < 100 || H > 8000) return '??';
+    return `${W}x${H}`;
+}
+
+/** Device pixel ratio — rounded to 0.5 steps. */
+function normDpr(d) {
+    const v = Math.round(Number(d) * 2) / 2;
+    if (!Number.isFinite(v) || v <= 0 || v > 10) return '??';
+    return String(v);
+}
+
+/** Connection type — Network Information API effectiveType, allowlist-enummed. */
+function normConn(c) {
+    const v = String(c || '').toLowerCase();
+    return ['slow-2g', '2g', '3g', '4g'].includes(v) ? v : '??';
+}
+
+/** Record the per-ping dimension histograms (best effort — every value coerces or '??'). */
+function recordDims(db, site, date, dims) {
+    const values = {
+        lang: normLang(dims.lang),
+        size: normSize(dims.w, dims.h),
+        dpr: normDpr(dims.dpr),
+        conn: normConn(dims.conn)
+    };
+    for (const [dim, value] of Object.entries(values)) {
+        const existing = db.find('type', 'dim').filter(d => d.site === site && d.date === date && d.dim === dim && d.value === value);
+        if (existing.length > 0) db.set(existing[0]._id, 'count', existing[0].count + 1);
+        else db.insert({ type: 'dim', site, date, dim, value, count: 1 });
+    }
+}
+
 // ---- Daily salt ----
 
 function getDailySalt(db, dateStr) {
@@ -126,6 +175,8 @@ function recordPing(db, log, { site, ip, ua, payload }) {
     if (db.find('type', 'visit').filter(v => v.site === site && v.date === date && v.vh === vh).length === 0) {
         db.insert({ type: 'visit', site, date, vh });
     }
+
+    if (payload.dims) recordDims(db, site, date, payload.dims);
 
     return { site, path: payload.path, refd: payload.refd, cc: country, device, browser };
 }
@@ -205,9 +256,22 @@ function knownSites(db) {
     return [...sites].sort();
 }
 
+/** Histogram of one dimension, sorted by count desc. dim: 'lang'|'size'|'dpr'|'conn'. */
+function dimHistogram(db, from, to, site, dim) {
+    const acc = {};
+    for (const d of db.find('type', 'dim')) {
+        if (d.dim !== dim) continue;
+        if (site && d.site !== site) continue;
+        if (from && d.date < from) continue;
+        if (to && d.date > to) continue;
+        acc[d.value] = (acc[d.value] || 0) + d.count;
+    }
+    return Object.entries(acc).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ k, v }));
+}
+
 function initAnalytics(dataDir, db, log) {
     loadGeoIp(dataDir, log);
-    return { recordPing, countReject, rejectCount, summarize, rawRows, knownSites };
+    return { recordPing, countReject, rejectCount, summarize, rawRows, knownSites, dimHistogram };
 }
 
 export { initAnalytics };
