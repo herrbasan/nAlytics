@@ -2,11 +2,27 @@
 import { nui } from '/analytics/nui/nui.js';
 import { lineChart, hourBars, donut, barRows, flag } from '/analytics/app/js/charts.js';
 
+function getDateRange(rangeVal) {
+    const now = new Date();
+    const to = now.toISOString().slice(0, 10);
+    if (rangeVal === 'today') return { from: to, to };
+    if (rangeVal === '7d') {
+        const d = new Date(Date.now() - 6 * 86400000);
+        return { from: d.toISOString().slice(0, 10), to };
+    }
+    if (rangeVal === '30d') {
+        const d = new Date(Date.now() - 29 * 86400000);
+        return { from: d.toISOString().slice(0, 10), to };
+    }
+    return { from: '', to: '' };
+}
+
 nui.registerPage('overview', {
     html: 'overview.html',
     init(element, params, nui) {
         const $ = (sel) => element.querySelector(sel);
         const siteSelect = $('#site-select');
+        const rangeSelect = $('#range-select');
         let sse = null;
         let refreshTimer = null;
 
@@ -23,22 +39,39 @@ nui.registerPage('overview', {
 
         async function loadSummary() {
             const site = siteSelect.getValue();
-            const qs = site ? '?site=' + encodeURIComponent(site) : '';
-            const [sumRes, langRes, connRes] = await Promise.all([
+            const rangeVal = rangeSelect?.getValue() || 'all';
+            const { from, to } = getDateRange(rangeVal);
+            const p = new URLSearchParams();
+            if (site) p.set('site', site);
+            if (from) p.set('from', from);
+            if (to) p.set('to', to);
+            const qs = p.toString() ? '?' + p.toString() : '';
+
+            const dimQs = (dim) => {
+                const dp = new URLSearchParams(p);
+                dp.set('dim', dim);
+                return '?' + dp.toString();
+            };
+
+            const [sumRes, langRes, connRes, sizeRes, dprRes] = await Promise.all([
                 fetch('/analytics/summary' + qs),
-                fetch('/analytics/dims?dim=lang' + (site ? '&site=' + encodeURIComponent(site) : '')),
-                fetch('/analytics/dims?dim=conn' + (site ? '&site=' + encodeURIComponent(site) : ''))
+                fetch('/analytics/dims' + dimQs('lang')),
+                fetch('/analytics/dims' + dimQs('conn')),
+                fetch('/analytics/dims' + dimQs('size')),
+                fetch('/analytics/dims' + dimQs('dpr'))
             ]);
             if (!sumRes.ok) throw new Error('summary fetch failed: ' + sumRes.status);
             const s = await sumRes.json();
             const lang = await langRes.json();
             const conn = await connRes.json();
-            render(s, lang, conn);
+            const size = await sizeRes.json();
+            const dpr = await dprRes.json();
+            render(s, lang, conn, size, dpr);
         }
 
         // ---- rendering ----
 
-        function render(s, lang, conn) {
+        function render(s, lang, conn, size, dpr) {
             const today = new Date().toISOString().slice(0, 10);
             const days = Object.keys(s.pageviewsByDay);
             const visitsSum = Object.values(s.visitsByDay).reduce((a, b) => a + b, 0);
@@ -82,6 +115,10 @@ nui.registerPage('overview', {
                 ? barRows(lang.map(l => ({ label: l.k, value: l.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
             $('#list-conn').innerHTML = conn.length
                 ? barRows(conn.map(c => ({ label: c.k, value: c.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
+            $('#list-size').innerHTML = size.length
+                ? barRows(size.map(x => ({ label: x.k === '??' ? 'Unknown' : x.k + ' px', value: x.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
+            $('#list-dpr').innerHTML = dpr.length
+                ? barRows(dpr.map(x => ({ label: x.k === '??' ? 'Unknown' : x.k + 'x' + (x.k === '2' ? ' (Retina)' : x.k === '1' ? ' (Standard)' : ''), value: x.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
         }
 
         // ---- SSE realtime ----
@@ -121,6 +158,7 @@ nui.registerPage('overview', {
         // ---- wiring ----
 
         siteSelect.addEventListener('nui-change', () => loadSummary().catch(console.error));
+        rangeSelect?.addEventListener('nui-change', () => loadSummary().catch(console.error));
         $('#refresh-btn button').addEventListener('click', () => loadSummary().catch(console.error));
 
         loadSites().then(loadSummary).catch(err => console.error('overview init failed:', err));
@@ -128,5 +166,100 @@ nui.registerPage('overview', {
 
         element.hide = () => { if (sse) { sse.close(); sse = null; } $('#live-dot').classList.remove('on'); };
         element.show = () => { if (!sse) startTicker(); loadSummary().catch(console.error); };
+    }
+});
+
+nui.registerPage('raw', {
+    html: 'raw.html',
+    init(element, params, nui) {
+        const $ = (sel) => element.querySelector(sel);
+        const siteSelect = $('#raw-site-select');
+        const searchInput = $('#raw-search');
+        const limitSelect = $('#raw-limit');
+        const tbody = $('#raw-tbody');
+        const statsEl = $('#raw-stats');
+        const emptyEl = $('#raw-empty');
+        let allRows = [];
+
+        async function loadSites() {
+            const res = await fetch('/analytics/sites');
+            if (!res.ok) return;
+            const { configured, known } = await res.json();
+            for (const s of [...new Set([...configured, ...known])]) {
+                if (!siteSelect.querySelector(`option[value="${s}"]`)) siteSelect.addItem(s, s);
+            }
+        }
+
+        async function loadRows() {
+            statsEl.textContent = 'Loading rows…';
+            const site = siteSelect.getValue();
+            const qs = site ? '?site=' + encodeURIComponent(site) : '';
+            const res = await fetch('/analytics/raw' + qs);
+            if (!res.ok) {
+                statsEl.textContent = 'Failed to load rows (' + res.status + ')';
+                return;
+            }
+            allRows = await res.json();
+            renderRows();
+        }
+
+        function renderRows() {
+            const query = (searchInput.value || '').trim().toLowerCase();
+            const limitVal = limitSelect.getValue();
+            const maxRows = limitVal === 'all' ? Infinity : Number(limitVal) || 100;
+
+            const filtered = query
+                ? allRows.filter(r =>
+                    r.path.toLowerCase().includes(query) ||
+                    (r.referrer && r.referrer.toLowerCase().includes(query)) ||
+                    (r.country && r.country.toLowerCase().includes(query)) ||
+                    (r.browser && r.browser.toLowerCase().includes(query)) ||
+                    (r.device && r.device.toLowerCase().includes(query)) ||
+                    (r.site && r.site.toLowerCase().includes(query))
+                  )
+                : allRows;
+
+            const totalHits = filtered.reduce((sum, r) => sum + r.count, 0);
+            statsEl.textContent = `Showing ${Math.min(filtered.length, maxRows)} of ${filtered.length} rows (${totalHits} total pageviews)`;
+
+            tbody.innerHTML = '';
+            if (filtered.length === 0) {
+                emptyEl.hidden = false;
+                return;
+            }
+            emptyEl.hidden = true;
+
+            const slice = filtered.slice(0, maxRows);
+            const fragment = document.createDocumentFragment();
+            for (const r of slice) {
+                const tr = document.createElement('tr');
+                const cells = [
+                    `${r.date} ${r.minute}`,
+                    r.site,
+                    r.path,
+                    r.referrer || '—',
+                    `${flag(r.country)} ${r.country}`,
+                    r.device,
+                    r.browser,
+                    String(r.count)
+                ];
+                for (let i = 0; i < cells.length; i++) {
+                    const td = document.createElement('td');
+                    td.textContent = cells[i];
+                    if (i === cells.length - 1) td.style.textAlign = 'right';
+                    tr.appendChild(td);
+                }
+                fragment.appendChild(tr);
+            }
+            tbody.appendChild(fragment);
+        }
+
+        siteSelect.addEventListener('nui-change', () => loadRows().catch(console.error));
+        limitSelect.addEventListener('nui-change', () => renderRows());
+        searchInput.addEventListener('input', () => renderRows());
+        $('#raw-refresh-btn button').addEventListener('click', () => loadRows().catch(console.error));
+
+        loadSites().then(loadRows).catch(console.error);
+        element.show = () => loadRows().catch(console.error);
     }
 });

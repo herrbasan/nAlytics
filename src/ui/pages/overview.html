@@ -11,6 +11,14 @@
                     <option value="">All sites</option>
                 </select>
             </nui-select>
+            <nui-select id="range-select" placeholder="Range">
+                <select>
+                    <option value="today">Today</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="all" selected>All time</option>
+                </select>
+            </nui-select>
             <nui-button id="refresh-btn">
                 <nui-icon name="refresh" decorative></nui-icon>
                 <button type="button">Refresh</button>
@@ -88,6 +96,19 @@
             <div>
                 <h2>Connection</h2>
                 <div id="list-conn"></div>
+            </div>
+        </nui-layout>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <nui-layout type="grid" columns="2" gap="1rem">
+            <div>
+                <h2>Screen sizes</h2>
+                <div id="list-size"></div>
+            </div>
+            <div>
+                <h2>Display density <span style="font-size: var(--font-size-small); color: var(--color-text-dim)">(DPR)</span></h2>
+                <div id="list-dpr"></div>
             </div>
         </nui-layout>
     </section>

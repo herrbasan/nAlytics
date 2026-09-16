@@ -37,18 +37,23 @@ an.recordPing(db, log, { site: 'raum', ip: '79.245.134.10', ua,
 an.recordPing(db, log, { site: 'raum', ip: '79.245.134.11', ua,
     payload: { path: '/dims/', refd: '', dims: { lang: 'de-DE', w: 9999, h: 50, dpr: 33, conn: 'wifi' } } });
 
+// 5. IPv6 visitor: two pings from same /48 prefix -> 2 pageviews, 1 visit, country '??'
+const evIpv6_1 = an.recordPing(db, log, { site: 'raum', ip: '2001:db8:abcd:0012::1', ua, payload: { path: '/ipv6/', refd: '' } });
+const evIpv6_2 = an.recordPing(db, log, { site: 'raum', ip: '2001:db8:abcd:9999::2', ua, payload: { path: '/ipv6/', refd: '' } });
+if (evIpv6_1.cc !== '??') throw new Error('IPv6 should yield ?? country, got ' + evIpv6_1.cc);
+
 // per-site summaries
 const sRaum = an.summarize(db, null, null, 'raum');
 const sOther = an.summarize(db, null, null, 'other');
 const sAll = an.summarize(db, null, null, null);
 console.log('\n--- raum ---');
-console.log('total:', sRaum.total, '(expect 4)');
-console.log('visits today:', Object.values(sRaum.visitsByDay)[0], '(expect 1)');
+console.log('total:', sRaum.total, '(expect 6)');
+console.log('visits today:', Object.values(sRaum.visitsByDay)[0], '(expect 2)');
 console.log('--- other ---');
 console.log('total:', sOther.total, '(expect 2)');
 console.log('visits today:', Object.values(sOther.visitsByDay)[0], '(expect 1)');
 console.log('--- all ---');
-console.log('total:', sAll.total, '(expect 6)');
+console.log('total:', sAll.total, '(expect 8)');
 
 // reject counter
 an.countReject(db);
@@ -73,15 +78,16 @@ const dimsOk = langH.length === 1 && langH[0].k === 'de' && langH[0].v === 2
     && sizeH.some(x => x.k === '1500x1000' && x.v === 1) && sizeH.some(x => x.k === '??' && x.v === 1)
     && dprH.some(x => x.k === '2' && x.v === 1) && connH.some(x => x.k === '4g' && x.v === 1);
 
-const ok = sRaum.total === 4 && Object.values(sRaum.visitsByDay)[0] === 1
+const ok = sRaum.total === 6 && Object.values(sRaum.visitsByDay)[0] === 2
   && sOther.total === 2 && Object.values(sOther.visitsByDay)[0] === 1
-  && sAll.total === 6 && sites === 'other,raum' && rows.length === 3 && keyOk && dimsOk
-  && sAll.devices.desktop === 4 && sAll.devices.mobile === 2
-  && sAll.countries.some(c => c.k === 'DE') && sAll.countries.some(c => c.k === 'US');
+  && sAll.total === 8 && sites === 'other,raum' && rows.length === 4 && keyOk && dimsOk
+  && sAll.devices.desktop === 6 && sAll.devices.mobile === 2
+  && sAll.countries.some(c => c.k === 'DE') && sAll.countries.some(c => c.k === 'US')
+  && sAll.countries.some(c => c.k === '??');
 
 const salts = db.find('type', 'salt');
 console.log('salt docs:', salts.length, '(expect 1 for today)');
-console.log('sites:', sites, '| raw rows:', rows.length, '(expect 3 distinct combos) | key shape ok:', keyOk);
+console.log('sites:', sites, '| raw rows:', rows.length, '(expect 4 distinct combos) | key shape ok:', keyOk);
 
 console.log(ok && salts.length === 1 ? '\nPASS' : '\nFAIL');
 process.exit(ok && salts.length === 1 ? 0 : 1);

@@ -70,7 +70,12 @@ function clientIp(req) {
     const xff = req.headers['x-forwarded-for'];
     if (typeof xff === 'string') {
         const first = xff.split(',')[0].trim();
-        if (/^\d+\.\d+\.\d+\.\d+$/.test(first)) return first;
+        // IPv4 (optional port)
+        const ipv4 = first.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?$/);
+        if (ipv4) return ipv4[1];
+        // IPv6 (strip optional brackets and port: [2001:...]:port)
+        const ipv6Clean = first.replace(/^\[/, '').replace(/\](?::\d+)?$/, '');
+        if (/^[0-9a-fA-F:]+$/.test(ipv6Clean) && ipv6Clean.includes(':')) return ipv6Clean;
     }
     return (req.socket.remoteAddress || '').replace('::ffff:', '') || '0.0.0.0';
 }

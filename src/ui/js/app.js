@@ -22,7 +22,8 @@ document.addEventListener('click', (e) => {
 
 // Sidebar navigation
 const navigationData = [
-    { label: 'Overview', href: '#page=overview', icon: 'analytics' }
+    { label: 'Overview', href: '#page=overview', icon: 'analytics' },
+    { label: 'Raw Rows', href: '#page=raw', icon: 'table_rows' }
 ];
 
 const sideNav = document.getElementById('main-navigation');

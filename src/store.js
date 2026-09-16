@@ -58,7 +58,7 @@ function ipToInt(ip) {
 }
 
 function lookupCountry(ip) {
-    if (!geoRanges) return '??';
+    if (!geoRanges || !ip || !/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return '??';
     const n = ipToInt(ip);
     let lo = 0, hi = geoRanges.length - 1;
     while (lo <= hi) {
@@ -161,10 +161,12 @@ function recordPing(db, log, { site, ip, ua, payload }) {
     const { device, browser } = classifyUa(ua);
     const country = lookupCountry(ip);
 
-    // visit_hash: /24 prefix + UA-class + day + daily salt. Same visitor
-    // within one day dedupes; across days the salt changes → non-linkable.
+    // visit_hash: /24 prefix (IPv4) or coarse /48 prefix (IPv6) + UA-class + day + daily salt.
+    // Same visitor within one day dedupes; across days the salt changes → non-linkable.
     const salt = getDailySalt(db, date);
-    const prefix = ip.split('.').slice(0, 3).join('.');
+    const prefix = ip.includes(':')
+        ? ip.split(':').slice(0, 3).join(':')
+        : ip.split('.').slice(0, 3).join('.');
     const vh = crypto.createHash('sha256').update(`${prefix}|${device}|${browser}|${date}|${salt}`).digest('hex').slice(0, 16);
 
     const key = [site, date, minute, payload.path, payload.refd, country, device, browser].join('|');
