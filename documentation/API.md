@@ -54,6 +54,7 @@ Aggregated dashboard feed.
   "countries":    [{ "k": "DE", "v": 100 }, ...], // top 15
   "devices":      { "desktop": 90, "mobile": 38 },
   "pageviewsByDay": { "2026-09-16": 50, ... },
+  "pageviewsByHour": { "00": 1, ..., "23": 4 },  // UTC hours; ⚠️ key order is NOT chronological (JS integer-key ordering) — index by hour key
   "visitsByDay":    { "2026-09-16": 12, ... }
 }
 ```

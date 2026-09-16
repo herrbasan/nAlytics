@@ -1,6 +1,6 @@
 <div class="page-overview">
     <header style="margin-bottom: var(--nui-space-double)">
-        <h1>Overview</h1>
+        <h1>Overview <span class="live-dot" id="live-dot"></span></h1>
         <p class="lead">Pageviews, visits and the realtime feed per site.</p>
     </header>
 
@@ -11,7 +11,7 @@
                     <option value="">All sites</option>
                 </select>
             </nui-select>
-            <nui-button data-action="refresh-summary" id="refresh-btn">
+            <nui-button id="refresh-btn">
                 <nui-icon name="refresh" decorative></nui-icon>
                 <button type="button">Refresh</button>
             </nui-button>
@@ -19,30 +19,77 @@
     </section>
 
     <section style="margin-top: var(--nui-space-double)">
-        <nui-layout type="grid" columns="3" gap="1rem">
+        <nui-layout type="grid" columns="4" gap="1rem">
             <nui-card>
                 <h2 style="margin-top: 0">Pageviews</h2>
-                <p id="stat-total" style="font-size: var(--font-size-xlarge); margin: 0">–</p>
+                <p id="stat-total" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
+            </nui-card>
+            <nui-card>
+                <h2 style="margin-top: 0">Visits</h2>
+                <p id="stat-visits" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
             </nui-card>
             <nui-card>
                 <h2 style="margin-top: 0">Rejects</h2>
-                <p id="stat-rejects" style="font-size: var(--font-size-xlarge); margin: 0">–</p>
+                <p id="stat-rejects" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
             </nui-card>
             <nui-card>
-                <h2 style="margin-top: 0">Days</h2>
-                <p id="stat-days" style="font-size: var(--font-size-xlarge); margin: 0">–</p>
+                <h2 style="margin-top: 0">Today</h2>
+                <p id="stat-today" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
             </nui-card>
         </nui-layout>
     </section>
 
     <section style="margin-top: var(--nui-space-double)">
-        <h2>Top paths</h2>
-        <nui-table id="top-paths">
-            <table>
-                <thead><tr><th>Path</th><th>Views</th></tr></thead>
-                <tbody><!-- filled by init --></tbody>
-            </table>
-        </nui-table>
+        <h2>By day</h2>
+        <div class="chart-legend">
+            <span style="--chip: var(--color-highlight)">Pageviews</span>
+            <span style="--chip: #e0556a">Visits</span>
+        </div>
+        <div id="chart-days"></div>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <h2>Time of day <span style="font-size: var(--font-size-small); color: var(--color-text-dim)">(UTC)</span></h2>
+        <div id="chart-hours"></div>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <nui-layout type="grid" columns="2" gap="1rem">
+            <div>
+                <h2>Devices</h2>
+                <div id="chart-devices" style="display: flex; align-items: center; gap: var(--nui-space)"></div>
+            </div>
+            <div>
+                <h2>Countries</h2>
+                <div id="list-countries"></div>
+            </div>
+        </nui-layout>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <nui-layout type="grid" columns="2" gap="1rem">
+            <div>
+                <h2>Top paths</h2>
+                <div id="list-paths"></div>
+            </div>
+            <div>
+                <h2>Referrers</h2>
+                <div id="list-referrers"></div>
+            </div>
+        </nui-layout>
+    </section>
+
+    <section style="margin-top: var(--nui-space-double)">
+        <nui-layout type="grid" columns="2" gap="1rem">
+            <div>
+                <h2>Languages</h2>
+                <div id="list-lang"></div>
+            </div>
+            <div>
+                <h2>Connection</h2>
+                <div id="list-conn"></div>
+            </div>
+        </nui-layout>
     </section>
 
     <section style="margin-top: var(--nui-space-double)">

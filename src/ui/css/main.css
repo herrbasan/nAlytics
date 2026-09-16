@@ -4,3 +4,44 @@
 .page-nav {
     padding: var(--nui-space);
 }
+
+/* Bar rows (charts.js barRows) */
+.bar-row { margin-bottom: var(--nui-space-half); }
+.bar-row-label {
+    display: flex; justify-content: space-between; gap: var(--nui-space);
+    font-size: var(--font-size-xsmall); margin-bottom: var(--nui-space-eighth);
+}
+.bar-row-sub { color: var(--color-text-dim); }
+.bar-row-value { color: var(--color-text-dim); font-variant-numeric: tabular-nums; }
+.bar-row-track { height: 6px; border-radius: 3px; background: var(--color-shade3); overflow: hidden; }
+.bar-row-fill { height: 100%; border-radius: 3px; background: var(--color-highlight); transition: width .4s ease; }
+
+/* Live indicator — pulses while the SSE feed is connected */
+.live-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--color-shade5); margin-right: var(--nui-space-quarter);
+    vertical-align: baseline;
+}
+.live-dot.on { background: #3aa66a; animation: live-pulse 2s ease-in-out infinite; }
+@keyframes live-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(58, 166, 106, .5); }
+    50% { box-shadow: 0 0 0 5px rgba(58, 166, 106, 0); }
+}
+
+/* New ticker row flash */
+.ticker-new { animation: ticker-flash 1.2s ease-out; }
+@keyframes ticker-flash {
+    from { background: var(--color-shade3); }
+    to { background: transparent; }
+}
+
+/* Chart legend */
+.chart-legend {
+    display: flex; gap: var(--nui-space); font-size: var(--font-size-xsmall);
+    color: var(--color-text-dim); margin-bottom: var(--nui-space-half);
+}
+.chart-legend span::before {
+    content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    margin-right: var(--nui-space-quarter); background: var(--chip, var(--color-highlight));
+    vertical-align: -1px;
+}

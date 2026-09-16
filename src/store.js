@@ -205,16 +205,17 @@ function summarize(db, from, to, site) {
         const date = parts[1];
         return (!from || date >= from) && (!to || date <= to);
     });
-    const byPath = {}, byRef = {}, byCountry = {}, byDevice = {}, byDay = {};
+    const byPath = {}, byRef = {}, byCountry = {}, byDevice = {}, byDay = {}, byHour = {};
     let total = 0;
     for (const d of pvs) {
-        const [, date, , p, refd, cc, device] = d.key.split('|');
+        const [, date, minute, p, refd, cc, device] = d.key.split('|');
         total += d.count;
         byPath[p] = (byPath[p] || 0) + d.count;
         byRef[refd || '(direct)'] = (byRef[refd || '(direct)'] || 0) + d.count;
         byCountry[cc] = (byCountry[cc] || 0) + d.count;
         byDevice[device] = (byDevice[device] || 0) + d.count;
         byDay[date] = (byDay[date] || 0) + d.count;
+        byHour[minute.slice(0, 2)] = (byHour[minute.slice(0, 2)] || 0) + d.count;
     }
     const visitsByDay = {};
     for (const v of db.find('type', 'visit')) {
@@ -230,6 +231,9 @@ function summarize(db, from, to, site) {
         topPaths: top(byPath, 20), topReferrers: top(byRef, 15),
         countries: top(byCountry, 15), devices: byDevice,
         pageviewsByDay: Object.fromEntries(Object.entries(byDay).sort()),
+        pageviewsByHour: Object.fromEntries(
+            Array.from({ length: 24 }, (_, h) => [String(h).padStart(2, '0'), byHour[String(h).padStart(2, '0')] || 0])
+        ),
         visitsByDay: Object.fromEntries(Object.entries(visitsByDay).sort()),
         rejects: rejectCount(db)
     };
