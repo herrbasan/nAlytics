@@ -1,8 +1,78 @@
 /* nAlytics app styles — layout-only, scoped to app pages. Never style NUI components. */
 
+/* Second chart series. Kept in one place so the legend chip, the line and the SVG
+   series colour can never drift apart. */
+:root {
+    --chart-alt: #e0556a;
+}
+
 /* Sidebar contents: standard spacing (NUI sidebars are layout-agnostic) */
 .page-nav {
     padding: var(--nui-space);
+}
+
+/* ---- Overview ---- */
+
+/* Toolbar row. nui-form-row owns the control heights; this only wraps and aligns. */
+.page-overview .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--nui-space);
+    margin-bottom: var(--nui-space-double);
+}
+
+/* The range caption sits under the controls so it never widens the toolbar row. */
+.page-overview .range-note {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: var(--font-size-small);
+    color: var(--color-text-dim);
+}
+
+.page-overview .stat-value {
+    margin: 0;
+    font-size: var(--font-size-xlarge);
+    font-variant-numeric: tabular-nums;
+}
+
+.page-overview .panel-note {
+    margin-top: calc(-1 * var(--nui-space-half));
+    margin-bottom: var(--nui-space);
+    font-size: var(--font-size-small);
+    color: var(--color-text-dim);
+}
+
+.page-overview .dim {
+    font-size: var(--font-size-small);
+    color: var(--color-text-dim);
+}
+
+/* Donut beside its legend list. */
+.page-overview .donut-row {
+    display: flex;
+    align-items: center;
+    gap: var(--nui-space-double);
+    flex-wrap: wrap;
+}
+
+/* ---- Raw inspector ---- */
+
+/* The search field flexes; the surrounding controls keep their natural width. */
+.page-raw .nui-input {
+    flex: 1;
+    min-width: 14rem;
+}
+
+.page-raw .range-note {
+    margin: 0 0 var(--nui-space);
+    color: var(--color-text-dim);
+    font-size: var(--font-size-small);
+}
+
+.page-raw .num,
+.page-raw td.num {
+    text-align: right;
 }
 
 /* Bar rows (charts.js barRows) */

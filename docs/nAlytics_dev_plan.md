@@ -91,8 +91,10 @@ Pre-aggregated counters, NOT raw events. All docs in nAlytics' own store file
     One doc per distinct visit_hash per site per day → visits = count of docs.
 { type:'salt', date:'<date>', value:'<random hex>' }
     Daily salt for visit_hash.
-{ type:'anmeta', name:'rejects', count }
-    Malformed/disallowed-payload counter.
+{ type:'anmeta', name:'rejects', date:'<date>', site:'<site>', count }
+    Malformed/disallowed-payload counter (contents never logged). Keyed by day
+    and site so a date range can report its own rejects; docs written before
+    2026-10-05 carry neither field and count only in an all-time query.
 ```
 
 Changes vs the nPort-era model:
@@ -134,10 +136,35 @@ Accept this consciously.
   is a library, not a framework; guessing produces broken code.
 - Served by nAlytics at `GET /analytics` (gated upstream of nPort's coarse
   gate — nAlytics itself binds localhost only).
-- Features: site switcher, realtime ping ticker (SSE), pageviews/visits by day
-  graphs, top paths/referrers/countries/devices tables, reject counter.
-- Graphs: client-side, no heavy chart framework unless justified — prefer
-  lightweight (hand-rolled SVG or a tiny lib). Decide when building.
+- **Overview is tabbed** (`nui-tabs`), not one long scroll:
+  - **Traffic** — pageviews/visits by day, time-of-day histogram (UTC)
+  - **Content** — top paths, referrers
+  - **Audience** — countries, devices (donut + list)
+  - **Technology** — browsers, languages, connection, screen size, DPR
+  - **Realtime** — live SSE ticker (unfiltered; the range does not apply)
+  Stat tiles sit above the tabs, since they summarise every panel at once.
+- **Date range** is `<nui-date-range>` (added to nui_wc2 upstream, 2026-10-05):
+  presets (Today / Yesterday / 7d / 30d / All) plus hand-picked from/to native
+  date inputs. The view is mirrored in the URL hash
+  (`#page=overview&from=…&to=…&site=…`) so a reload or a shared link restores it.
+  The picker is bounded by the data extent reported at `/analytics/sites`
+  (`first` / `last`), so it never offers a window the store cannot answer for.
+- Graphs: client-side, no heavy chart framework — hand-rolled SVG in
+  `src/ui/js/charts.js`. Decided 2026-10-05; keep it that way until a chart need
+  actually outgrows it.
+
+### Range-scoped data
+
+`from`/`to` are inclusive UTC date strings on `/analytics/summary`, `/analytics/dims`
+and `/analytics/raw`. Two consequences worth remembering:
+
+- **The reject counter is per day.** `anmeta` reject docs carry `date` and `site`, so
+  a range reports rejects for that window. Docs written before this change have no
+  `date` and are counted only in an unbounded (all-time) query — never attributed to
+  a specific day.
+- **`browser` is in the pv key and now surfaced** as `summary.browsers`. It was
+  recorded from the start but never aggregated, so browsers were not sliceable.
+
 
 ## Service skeleton
 

@@ -130,10 +130,11 @@ function handlePing(req, res, ctx) {
         const payload = JSON.parse(body);
         // Validate + normalize client fields. Query strings/fragments never stored.
         const p = typeof payload.path === 'string' ? payload.path.split('?')[0].split('#')[0] : null;
-        if (!p || !p.startsWith('/') || p.length > 512) { ctx.analytics.countReject(ctx.db); done(); return; }
+        const site = ctx.config.origins.get(origin);
+        if (!p || !p.startsWith('/') || p.length > 512) { ctx.analytics.countReject(ctx.db, site); done(); return; }
 
         const event = ctx.analytics.recordPing(ctx.db, ctx.log, {
-            site: ctx.config.origins.get(origin),
+            site,
             ip: clientIp(req),
             ua: req.headers['user-agent'] || '',
             payload: {
@@ -146,7 +147,7 @@ function handlePing(req, res, ctx) {
         done();
     }).catch(() => {
         // Malformed payload: count the reject, never log contents.
-        ctx.analytics.countReject(ctx.db);
+        ctx.analytics.countReject(ctx.db, ctx.config.origins.get(origin));
         done();
     });
 }
@@ -229,11 +230,18 @@ function start() {
             return;
         }
         if (route === '/analytics/raw') {
-            sendJson(res, 200, analytics.rawRows(db, url.searchParams.get('site')));
+            sendJson(res, 200, analytics.rawRows(db,
+                url.searchParams.get('site'),
+                url.searchParams.get('from'),
+                url.searchParams.get('to')));
             return;
         }
         if (route === '/analytics/sites') {
-            sendJson(res, 200, { configured: [...new Set(config.origins.values())], known: analytics.knownSites(db) });
+            sendJson(res, 200, {
+                configured: [...new Set(config.origins.values())],
+                known: analytics.knownSites(db),
+                ...analytics.dataExtent(db)
+            });
             return;
         }
         if (route === '/analytics/dims') {

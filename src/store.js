@@ -183,15 +183,28 @@ function recordPing(db, log, { site, ip, ua, payload }) {
     return { site, path: payload.path, refd: payload.refd, cc: country, device, browser };
 }
 
-function countReject(db) {
-    const m = db.find('type', 'anmeta').filter(d => d.name === 'rejects');
+function countReject(db, site) {
+    const date = new Date().toISOString().slice(0, 10);
+    const m = db.find('type', 'anmeta').filter(d => d.name === 'rejects' && d.date === date && (d.site || '') === (site || ''));
     if (m.length > 0) db.set(m[0]._id, 'count', m[0].count + 1);
-    else db.insert({ type: 'anmeta', name: 'rejects', count: 1 });
+    else db.insert({ type: 'anmeta', name: 'rejects', date, site: site || '', count: 1 });
 }
 
-function rejectCount(db) {
-    const m = db.find('type', 'anmeta').filter(d => d.name === 'rejects');
-    return m.length > 0 ? m[0].count : 0;
+/**
+ * Reject count over an inclusive date window. Every doc carries its own `date`, so a
+ * range never has to fall back to the all-time total — which would be reported next to
+ * in-range pageviews and read as a number for this window. Omit from/to for all time.
+ */
+function rejectCount(db, from, to, site) {
+    const rows = db.find('type', 'anmeta').filter(d => {
+        if (d.name !== 'rejects') return false;
+        // Pre-dating docs predate the per-day key and carry no site — count them
+        // globally rather than dropping them from a total.
+        if (site && d.site && d.site !== site) return false;
+        if (!d.date) return !from && !to;
+        return (!from || d.date >= from) && (!to || d.date <= to);
+    });
+    return rows.reduce((sum, d) => sum + d.count, 0);
 }
 
 // ---- Summary (dashboard feed) ----
@@ -207,15 +220,16 @@ function summarize(db, from, to, site) {
         const date = parts[1];
         return (!from || date >= from) && (!to || date <= to);
     });
-    const byPath = {}, byRef = {}, byCountry = {}, byDevice = {}, byDay = {}, byHour = {};
+    const byPath = {}, byRef = {}, byCountry = {}, byDevice = {}, byBrowser = {}, byDay = {}, byHour = {};
     let total = 0;
     for (const d of pvs) {
-        const [, date, minute, p, refd, cc, device] = d.key.split('|');
+        const [, date, minute, p, refd, cc, device, browser] = d.key.split('|');
         total += d.count;
         byPath[p] = (byPath[p] || 0) + d.count;
         byRef[refd || '(direct)'] = (byRef[refd || '(direct)'] || 0) + d.count;
         byCountry[cc] = (byCountry[cc] || 0) + d.count;
         byDevice[device] = (byDevice[device] || 0) + d.count;
+        byBrowser[browser] = (byBrowser[browser] || 0) + d.count;
         byDay[date] = (byDay[date] || 0) + d.count;
         byHour[minute.slice(0, 2)] = (byHour[minute.slice(0, 2)] || 0) + d.count;
     }
@@ -231,23 +245,29 @@ function summarize(db, from, to, site) {
     return {
         total, days: Object.keys(byDay).length,
         topPaths: top(byPath, 20), topReferrers: top(byRef, 15),
-        countries: top(byCountry, 15), devices: byDevice,
+        countries: top(byCountry, 15), devices: byDevice, browsers: top(byBrowser, 12),
         pageviewsByDay: Object.fromEntries(Object.entries(byDay).sort()),
         pageviewsByHour: Object.fromEntries(
             Array.from({ length: 24 }, (_, h) => [String(h).padStart(2, '0'), byHour[String(h).padStart(2, '0')] || 0])
         ),
         visitsByDay: Object.fromEntries(Object.entries(visitsByDay).sort()),
-        rejects: rejectCount(db)
+        visits: Object.values(visitsByDay).reduce((a, b) => a + b, 0),
+        rejects: rejectCount(db, from, to, site)
     };
 }
 
 /**
  * Raw counter rows — one per pv doc, key split into fields.
- * Used by the admin list; `site` filters by first key dimension.
+ * Used by the admin list. `site` filters by first key dimension;
+ * `from`/`to` are the same inclusive UTC date window the summary uses.
  */
-function rawRows(db, site) {
+function rawRows(db, site, from, to) {
     return db.find('type', 'pv')
-        .filter(d => !site || d.key.split('|')[0] === site)
+        .filter(d => {
+            const [s, date] = d.key.split('|');
+            if (site && s !== site) return false;
+            return (!from || date >= from) && (!to || date <= to);
+        })
         .map(d => {
             const [s, date, minute, p, refd, cc, device, browser] = d.key.split('|');
             return { site: s, date, minute, path: p, referrer: refd, country: cc, device, browser, count: d.count };
@@ -260,6 +280,19 @@ function knownSites(db) {
     const sites = new Set(db.find('type', 'visit').map(v => v.site));
     for (const d of db.find('type', 'pv')) sites.add(d.key.split('|')[0]);
     return [...sites].sort();
+}
+
+/** Inclusive [from, to] of the days that actually hold pv data, plus today's pageviews. */
+function dataExtent(db) {
+    let first = null, last = null, today = 0;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    for (const d of db.find('type', 'pv')) {
+        const date = d.key.split('|')[1];
+        if (first === null || date < first) first = date;
+        if (last === null || date > last) last = date;
+        if (date === todayStr) today += d.count;
+    }
+    return { first: first || '', last: last || '', today };
 }
 
 /** Histogram of one dimension, sorted by count desc. dim: 'lang'|'size'|'dpr'|'conn'. */
@@ -277,7 +310,7 @@ function dimHistogram(db, from, to, site, dim) {
 
 function initAnalytics(dataDir, db, log) {
     loadGeoIp(dataDir, log);
-    return { recordPing, countReject, rejectCount, summarize, rawRows, knownSites, dimHistogram };
+    return { recordPing, countReject, rejectCount, summarize, rawRows, knownSites, dimHistogram, dataExtent };
 }
 
 export { initAnalytics };

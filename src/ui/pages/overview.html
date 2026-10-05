@@ -1,126 +1,125 @@
 <div class="page-overview">
-    <header style="margin-bottom: var(--nui-space-double)">
+    <header>
         <h1>Overview <span class="live-dot" id="live-dot"></span></h1>
         <p class="lead">Pageviews, visits and the realtime feed per site.</p>
     </header>
 
-    <section>
-        <div style="display: flex; gap: var(--nui-space); align-items: center; flex-wrap: wrap;">
-            <nui-select id="site-select" placeholder="Site">
+    <section class="filter-bar">
+        <nui-select id="site-select" placeholder="Site">
+            <select>
+                <option value="">All sites</option>
+            </select>
+        </nui-select>
+        <nui-date-range id="range-picker">
+            <nui-select placeholder="Range">
                 <select>
-                    <option value="">All sites</option>
-                </select>
-            </nui-select>
-            <nui-select id="range-select" placeholder="Range">
-                <select>
+                    <option value="" selected>Custom</option>
                     <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
                     <option value="7d">Last 7 days</option>
                     <option value="30d">Last 30 days</option>
-                    <option value="all" selected>All time</option>
+                    <option value="all">All time</option>
                 </select>
             </nui-select>
-            <nui-button id="refresh-btn">
+            <input type="date" data-nui-date-range="from" aria-label="From date">
+            <input type="date" data-nui-date-range="to" aria-label="To date">
+        </nui-date-range>
+        <nui-button id="refresh-btn">
+            <button type="button">
                 <nui-icon name="refresh" decorative></nui-icon>
-                <button type="button">Refresh</button>
-            </nui-button>
-        </div>
+                Refresh
+            </button>
+        </nui-button>
+        <p class="range-note" id="range-note"></p>
     </section>
 
-    <section style="margin-top: var(--nui-space-double)">
+    <section>
         <nui-layout type="grid" columns="4" gap="1rem">
             <nui-card>
-                <h2 style="margin-top: 0">Pageviews</h2>
-                <p id="stat-total" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
+                <h2>Pageviews</h2>
+                <p class="stat-value" id="stat-total">–</p>
             </nui-card>
             <nui-card>
-                <h2 style="margin-top: 0">Visits</h2>
-                <p id="stat-visits" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
+                <h2>Visits</h2>
+                <p class="stat-value" id="stat-visits">–</p>
             </nui-card>
             <nui-card>
-                <h2 style="margin-top: 0">Rejects</h2>
-                <p id="stat-rejects" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
+                <h2>Rejects</h2>
+                <p class="stat-value" id="stat-rejects">–</p>
             </nui-card>
             <nui-card>
-                <h2 style="margin-top: 0">Today</h2>
-                <p id="stat-today" style="font-size: var(--font-size-xlarge); margin: 0; font-variant-numeric: tabular-nums">–</p>
+                <h2>Avg / day</h2>
+                <p class="stat-value" id="stat-avg">–</p>
             </nui-card>
         </nui-layout>
     </section>
 
-    <section style="margin-top: var(--nui-space-double)">
-        <h2>By day</h2>
-        <div class="chart-legend">
-            <span style="--chip: var(--color-highlight)">Pageviews</span>
-            <span style="--chip: #e0556a">Visits</span>
-        </div>
-        <div id="chart-days"></div>
-    </section>
+    <section>
+        <nui-tabs id="metric-tabs">
+            <nav>
+                <button type="button">Traffic</button>
+                <button type="button">Content</button>
+                <button type="button">Audience</button>
+                <button type="button">Technology</button>
+                <button type="button">Realtime</button>
+            </nav>
 
-    <section style="margin-top: var(--nui-space-double)">
-        <h2>Time of day <span style="font-size: var(--font-size-small); color: var(--color-text-dim)">(UTC)</span></h2>
-        <div id="chart-hours"></div>
-    </section>
+            <section>
+                <h2>By day</h2>
+                <p class="panel-note">Pageviews and visits across the selected range.</p>
+                <div class="chart-legend">
+                    <span style="--chip: var(--color-highlight)">Pageviews</span>
+                    <span style="--chip: var(--chart-alt)">Visits</span>
+                </div>
+                <div id="chart-days"></div>
 
-    <section style="margin-top: var(--nui-space-double)">
-        <nui-layout type="grid" columns="2" gap="1rem">
-            <div>
-                <h2>Devices</h2>
-                <div id="chart-devices" style="display: flex; align-items: center; gap: var(--nui-space)"></div>
-            </div>
-            <div>
-                <h2>Countries</h2>
-                <div id="list-countries"></div>
-            </div>
-        </nui-layout>
-    </section>
+                <h2>Time of day <span class="dim">(UTC)</span></h2>
+                <p class="panel-note">When across the whole range, in UTC.</p>
+                <div id="chart-hours"></div>
+            </section>
 
-    <section style="margin-top: var(--nui-space-double)">
-        <nui-layout type="grid" columns="2" gap="1rem">
-            <div>
+            <section hidden>
                 <h2>Top paths</h2>
                 <div id="list-paths"></div>
-            </div>
-            <div>
                 <h2>Referrers</h2>
+                <p class="panel-note">Reduced to the registrable domain; query strings are stripped at ingest.</p>
                 <div id="list-referrers"></div>
-            </div>
-        </nui-layout>
-    </section>
+            </section>
 
-    <section style="margin-top: var(--nui-space-double)">
-        <nui-layout type="grid" columns="2" gap="1rem">
-            <div>
+            <section hidden>
+                <h2>Countries</h2>
+                <div id="list-countries"></div>
+                <h2>Devices</h2>
+                <div class="donut-row">
+                    <div id="chart-devices"></div>
+                    <div id="list-devices"></div>
+                </div>
+            </section>
+
+            <section hidden>
+                <h2>Browsers</h2>
+                <div id="list-browsers"></div>
                 <h2>Languages</h2>
                 <div id="list-lang"></div>
-            </div>
-            <div>
                 <h2>Connection</h2>
                 <div id="list-conn"></div>
-            </div>
-        </nui-layout>
-    </section>
-
-    <section style="margin-top: var(--nui-space-double)">
-        <nui-layout type="grid" columns="2" gap="1rem">
-            <div>
                 <h2>Screen sizes</h2>
                 <div id="list-size"></div>
-            </div>
-            <div>
-                <h2>Display density <span style="font-size: var(--font-size-small); color: var(--color-text-dim)">(DPR)</span></h2>
+                <h2>Display density <span class="dim">(DPR)</span></h2>
                 <div id="list-dpr"></div>
-            </div>
-        </nui-layout>
-    </section>
+            </section>
 
-    <section style="margin-top: var(--nui-space-double)">
-        <h2>Realtime</h2>
-        <p class="lead" id="ticker-empty">Waiting for pings…</p>
-        <nui-table id="ticker" hidden>
-            <table>
-                <thead><tr><th>Time</th><th>Site</th><th>Path</th><th>Country</th><th>Device</th><th>Referrer</th></tr></thead>
-                <tbody><!-- filled by SSE --></tbody>
-            </table>
-        </nui-table>
+            <section hidden>
+                <h2>Realtime</h2>
+                <p class="panel-note">Live beacon pings as they land. The range filter does not apply here — this is the last 50 events, unfiltered.</p>
+                <p class="lead" id="ticker-empty">Waiting for pings…</p>
+                <nui-table id="ticker" hidden>
+                    <table>
+                        <thead><tr><th>Time</th><th>Site</th><th>Path</th><th>Country</th><th>Device</th><th>Referrer</th></tr></thead>
+                        <tbody><!-- filled by SSE --></tbody>
+                    </table>
+                </nui-table>
+            </section>
+        </nui-tabs>
     </section>
 </div>

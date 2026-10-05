@@ -2,45 +2,78 @@
 import { nui } from '/analytics/nui/nui.js';
 import { lineChart, hourBars, donut, barRows, flag } from '/analytics/app/js/charts.js';
 
-function getDateRange(rangeVal) {
-    const now = new Date();
-    const to = now.toISOString().slice(0, 10);
-    if (rangeVal === 'today') return { from: to, to };
-    if (rangeVal === '7d') {
-        const d = new Date(Date.now() - 6 * 86400000);
-        return { from: d.toISOString().slice(0, 10), to };
-    }
-    if (rangeVal === '30d') {
-        const d = new Date(Date.now() - 29 * 86400000);
-        return { from: d.toISOString().slice(0, 10), to };
-    }
-    return { from: '', to: '' };
-}
+const nf = new Intl.NumberFormat();
 
 nui.registerPage('overview', {
     html: 'overview.html',
     init(element, params, nui) {
         const $ = (sel) => element.querySelector(sel);
         const siteSelect = $('#site-select');
-        const rangeSelect = $('#range-select');
+        const rangePicker = $('#range-picker');
+        const rangeNote = $('#range-note');
+        const refreshBtn = $('#refresh-btn button');
         let sse = null;
         let refreshTimer = null;
+        let extent = { first: '', last: '' };
+
+        // The range is mirrored in the hash so a view survives a reload or a shared
+        // link: `#page=overview&from=…&to=…&site=…`. The router owns `page`; we own the
+        // rest, and every writer goes through syncHash() so they cannot disagree.
+        function readHash() {
+            const p = new URLSearchParams(location.hash.split('?')[1] || '');
+            return { from: p.get('from') || '', to: p.get('to') || '', site: p.get('site') || '' };
+        }
+
+        function syncHash() {
+            const { from, to } = rangePicker.getValue();
+            const site = siteSelect.getValue();
+            const p = new URLSearchParams();
+            p.set('page', 'overview');
+            if (from) p.set('from', from);
+            if (to) p.set('to', to);
+            if (site) p.set('site', site);
+            history.replaceState(null, '', '#' + p.toString());
+        }
 
         // ---- data loading ----
 
         async function loadSites() {
             const res = await fetch('/analytics/sites');
             if (!res.ok) throw new Error('sites fetch failed: ' + res.status);
-            const { configured, known } = await res.json();
+            const { configured, known, first, last } = await res.json();
+            extent = { first: first || '', last: last || '' };
             for (const s of [...new Set([...configured, ...known])]) {
                 if (!siteSelect.querySelector(`option[value="${s}"]`)) siteSelect.addItem(s, s);
             }
+            // Never let the picker offer a window the data cannot answer for.
+            rangePicker.setAttribute('min', extent.first);
+            rangePicker.setAttribute('max', new Date().toISOString().slice(0, 10));
+        }
+
+        function currentRange() {
+            const { from, to } = rangePicker.getValue();
+            if (!from && !to) return { from: '', to: '' };
+            // A range with only one end bound is a single day, not an open window —
+            // otherwise "from 2026-10-01" would silently mean "from then until forever".
+            return { from, to: to || from };
+        }
+
+        function describeRange() {
+            const { from, to } = currentRange();
+            if (!from && !to) {
+                rangeNote.textContent = extent.last
+                    ? `All time — ${extent.first} to ${extent.last} recorded.`
+                    : 'No data recorded yet.';
+                return;
+            }
+            rangeNote.textContent = from === to
+                ? `Single day: ${from}`
+                : `${from} to ${to} (UTC, inclusive)`;
         }
 
         async function loadSummary() {
             const site = siteSelect.getValue();
-            const rangeVal = rangeSelect?.getValue() || 'all';
-            const { from, to } = getDateRange(rangeVal);
+            const { from, to } = currentRange();
             const p = new URLSearchParams();
             if (site) p.set('site', site);
             if (from) p.set('from', from);
@@ -66,59 +99,72 @@ nui.registerPage('overview', {
             const conn = await connRes.json();
             const size = await sizeRes.json();
             const dpr = await dprRes.json();
+            describeRange();
             render(s, lang, conn, size, dpr);
         }
 
         // ---- rendering ----
 
-        function render(s, lang, conn, size, dpr) {
-            const today = new Date().toISOString().slice(0, 10);
-            const days = Object.keys(s.pageviewsByDay);
-            const visitsSum = Object.values(s.visitsByDay).reduce((a, b) => a + b, 0);
+        const empty = (msg) => `<p class="lead">${msg}</p>`;
 
-            $('#stat-total').textContent = s.total;
-            $('#stat-visits').textContent = visitsSum;
-            $('#stat-rejects').textContent = s.rejects;
-            $('#stat-today').textContent = s.pageviewsByDay[today] ?? 0;
+        function render(s, lang, conn, size, dpr) {
+            const days = Object.keys(s.pageviewsByDay);
+            const visits = s.visits ?? 0;
+
+            $('#stat-total').textContent = nf.format(s.total);
+            $('#stat-visits').textContent = nf.format(visits);
+            $('#stat-rejects').textContent = nf.format(s.rejects);
+            // A single recorded day has no daily rate to report, and dividing the whole
+            // lifetime by one would read as a trend that never happened.
+            $('#stat-avg').textContent = s.days > 1 ? nf.format(Math.round(s.total / s.days)) : '–';
 
             // By-day: dual line chart (pageviews filled area + visits line)
             $('#chart-days').innerHTML = days.length
                 ? lineChart(
                     [
                         { name: 'Pageviews', color: 'var(--color-highlight)', fill: true, values: days.map(d => s.pageviewsByDay[d]) },
-                        { name: 'Visits', color: '#e0556a', values: days.map(d => s.visitsByDay[d] || 0) }
+                        { name: 'Visits', color: 'var(--chart-alt)', values: days.map(d => s.visitsByDay[d] || 0) }
                     ],
                     days.map(d => d.slice(5)) // MM-DD labels
                 )
-                : '<p class="lead">No data yet.</p>';
+                : empty('No pageviews in this range.');
 
             // Time of day — index explicitly by hour: object key order is NOT
             // chronological (JS hoists integer-like keys "10".."23" before "00".."09")
             const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
             $('#chart-hours').innerHTML = hourBars(hours.map(h => s.pageviewsByHour[h] || 0));
 
-            // Devices donut + legend
+            // Devices donut + legend list
+            const palette = ['var(--color-highlight)', 'var(--chart-alt)', '#3aa66a', '#c98a2d'];
             const devices = Object.entries(s.devices)
-                .map(([label, value], i) => ({ label, value, color: ['var(--color-highlight)', '#e0556a', '#3aa66a', '#c98a2d'][i % 4] }));
-            $('#chart-devices').innerHTML = devices.length
-                ? donut(devices) + '<div>' + barRows(devices.map(d => ({ label: d.label, value: d.value }))) + '</div>'
-                : '<p class="lead">No data yet.</p>';
+                .map(([label, value], i) => ({ label, value, color: palette[i % palette.length] }));
+            $('#chart-devices').innerHTML = devices.length ? donut(devices) : '';
+            $('#list-devices').innerHTML = devices.length
+                ? barRows(devices.map(d => ({ label: d.label, value: d.value })))
+                : empty('No pageviews in this range.');
 
-            // Countries with flags, top paths, referrers, dims
+            // Countries, content, technology
             $('#list-countries').innerHTML = s.countries.length
-                ? barRows(s.countries.map(c => ({ label: `${flag(c.k)} ${c.k}`, value: c.v }))) : '<p class="lead">No data yet.</p>';
+                ? barRows(s.countries.map(c => ({ label: `${flag(c.k)} ${c.k}`, value: c.v }))) : empty('No data in this range.');
             $('#list-paths').innerHTML = s.topPaths.length
-                ? barRows(s.topPaths.map(p => ({ label: p.k, value: p.v }))) : '<p class="lead">No data yet.</p>';
+                ? barRows(s.topPaths.map(p => ({ label: p.k, value: p.v }))) : empty('No data in this range.');
             $('#list-referrers').innerHTML = s.topReferrers.length
-                ? barRows(s.topReferrers.map(r => ({ label: r.k, value: r.v }))) : '<p class="lead">No data yet.</p>';
-            $('#list-lang').innerHTML = lang.length
-                ? barRows(lang.map(l => ({ label: l.k, value: l.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
-            $('#list-conn').innerHTML = conn.length
-                ? barRows(conn.map(c => ({ label: c.k, value: c.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
-            $('#list-size').innerHTML = size.length
-                ? barRows(size.map(x => ({ label: x.k === '??' ? 'Unknown' : x.k + ' px', value: x.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
-            $('#list-dpr').innerHTML = dpr.length
-                ? barRows(dpr.map(x => ({ label: x.k === '??' ? 'Unknown' : x.k + 'x' + (x.k === '2' ? ' (Retina)' : x.k === '1' ? ' (Standard)' : ''), value: x.v }))) : '<p class="lead">No dims yet — needs the new beacon snippet.</p>';
+                ? barRows(s.topReferrers.map(r => ({ label: r.k, value: r.v }))) : empty('No data in this range.');
+            $('#list-browsers').innerHTML = s.browsers?.length
+                ? barRows(s.browsers.map(b => ({ label: b.k, value: b.v }))) : empty('No data in this range.');
+
+            const dimRows = (rows, fmt) => rows.length
+                ? barRows(rows.map(x => ({ label: fmt(x.k), value: x.v })))
+                : empty('No dims recorded — needs a beacon sending them.');
+            $('#list-lang').innerHTML = dimRows(lang, (k) => k);
+            $('#list-conn').innerHTML = dimRows(conn, (k) => (k === '4g' ? '4G' : k.toUpperCase()));
+            $('#list-size').innerHTML = dimRows(size, (k) => (k === '??' ? 'Unknown' : `${k} px`));
+            $('#list-dpr').innerHTML = dimRows(dpr, (k) => {
+                if (k === '??') return 'Unknown';
+                if (k === '1') return '1x (standard)';
+                if (k === '2') return '2x (retina)';
+                return `${k}x`;
+            });
         }
 
         // ---- SSE realtime ----
@@ -145,10 +191,6 @@ nui.registerPage('overview', {
                 }
                 tbody.prepend(tr);
                 while (tbody.children.length > 50) tbody.lastChild.remove();
-
-                // optimistic bump of the Today counter
-                const todayEl = $('#stat-today');
-                todayEl.textContent = (Number(todayEl.textContent) || 0) + 1;
                 scheduleRefresh();
             };
             sse.onerror = () => { $('#live-dot').classList.remove('on'); };
@@ -157,11 +199,24 @@ nui.registerPage('overview', {
 
         // ---- wiring ----
 
-        siteSelect.addEventListener('nui-change', () => loadSummary().catch(console.error));
-        rangeSelect?.addEventListener('nui-change', () => loadSummary().catch(console.error));
-        $('#refresh-btn button').addEventListener('click', () => loadSummary().catch(console.error));
+        // One entry point for every change: persist the view, then reload it.
+        function applyAndLoad() {
+            syncHash();
+            loadSummary().catch(console.error);
+        }
 
-        loadSites().then(loadSummary).catch(err => console.error('overview init failed:', err));
+        loadSites().then(() => {
+            const h = readHash();
+            // Restore before the listeners below are attached — setValue() emits
+            // nui-date-range-change, and loading twice on boot is visible.
+            if (h.site) siteSelect.setValue(h.site);
+            rangePicker.setValue({ from: h.from, to: h.to });
+            siteSelect.addEventListener('nui-change', applyAndLoad);
+            rangePicker.addEventListener('nui-date-range-change', applyAndLoad);
+            refreshBtn.addEventListener('click', applyAndLoad);
+            syncHash();
+            return loadSummary();
+        }).catch(err => console.error('overview init failed:', err));
         startTicker();
 
         element.hide = () => { if (sse) { sse.close(); sse = null; } $('#live-dot').classList.remove('on'); };
@@ -174,6 +229,7 @@ nui.registerPage('raw', {
     init(element, params, nui) {
         const $ = (sel) => element.querySelector(sel);
         const siteSelect = $('#raw-site-select');
+        const rangePicker = $('#raw-range-picker');
         const searchInput = $('#raw-search');
         const limitSelect = $('#raw-limit');
         const tbody = $('#raw-tbody');
@@ -184,16 +240,26 @@ nui.registerPage('raw', {
         async function loadSites() {
             const res = await fetch('/analytics/sites');
             if (!res.ok) return;
-            const { configured, known } = await res.json();
+            const { configured, known, first, last } = await res.json();
             for (const s of [...new Set([...configured, ...known])]) {
                 if (!siteSelect.querySelector(`option[value="${s}"]`)) siteSelect.addItem(s, s);
             }
+            rangePicker.setAttribute('min', first || '');
+            rangePicker.setAttribute('max', new Date().toISOString().slice(0, 10));
+            // An unbounded row limit over an unbounded date range is a full table
+            // scan; default the window to the last 30 days so the first paint is bounded.
+            if (!rangePicker.getValue().from && !rangePicker.getValue().to) rangePicker.setPreset('30d');
         }
 
         async function loadRows() {
-            statsEl.textContent = 'Loading rows…';
             const site = siteSelect.getValue();
-            const qs = site ? '?site=' + encodeURIComponent(site) : '';
+            const p = new URLSearchParams();
+            if (site) p.set('site', site);
+            const { from, to } = rangePicker.getValue();
+            if (from) p.set('from', from);
+            if (to) p.set('to', to);
+            const qs = p.toString() ? '?' + p.toString() : '';
+            statsEl.textContent = 'Loading rows…';
             const res = await fetch('/analytics/raw' + qs);
             if (!res.ok) {
                 statsEl.textContent = 'Failed to load rows (' + res.status + ')';
@@ -246,7 +312,7 @@ nui.registerPage('raw', {
                 for (let i = 0; i < cells.length; i++) {
                     const td = document.createElement('td');
                     td.textContent = cells[i];
-                    if (i === cells.length - 1) td.style.textAlign = 'right';
+                    if (i === cells.length - 1) td.className = 'num';
                     tr.appendChild(td);
                 }
                 fragment.appendChild(tr);
@@ -255,6 +321,7 @@ nui.registerPage('raw', {
         }
 
         siteSelect.addEventListener('nui-change', () => loadRows().catch(console.error));
+        rangePicker.addEventListener('nui-date-range-change', () => loadRows().catch(console.error));
         limitSelect.addEventListener('nui-change', () => renderRows());
         searchInput.addEventListener('input', () => renderRows());
         $('#raw-refresh-btn button').addEventListener('click', () => loadRows().catch(console.error));
