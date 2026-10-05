@@ -282,17 +282,20 @@ function knownSites(db) {
     return [...sites].sort();
 }
 
-/** Inclusive [from, to] of the days that actually hold pv data, plus today's pageviews. */
-function dataExtent(db) {
+/** Inclusive [from, to] of the days that actually hold pv data, plus today's pageviews and daily counts. */
+function dataExtent(db, site) {
     let first = null, last = null, today = 0;
+    const daily = {};
     const todayStr = new Date().toISOString().slice(0, 10);
     for (const d of db.find('type', 'pv')) {
-        const date = d.key.split('|')[1];
+        const [s, date] = d.key.split('|');
+        if (site && s !== site) continue;
         if (first === null || date < first) first = date;
         if (last === null || date > last) last = date;
         if (date === todayStr) today += d.count;
+        daily[date] = (daily[date] || 0) + d.count;
     }
-    return { first: first || '', last: last || '', today };
+    return { first: first || '', last: last || '', today, daily };
 }
 
 /** Histogram of one dimension, sorted by count desc. dim: 'lang'|'size'|'dpr'|'conn'. */

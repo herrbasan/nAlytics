@@ -42,9 +42,11 @@ nui.registerPage('overview', {
         // ---- data loading ----
 
         async function loadSites() {
-            const res = await fetch('/analytics/sites');
+            const site = siteSelect.getValue();
+            const qs = site ? `?site=${encodeURIComponent(site)}` : '';
+            const res = await fetch('/analytics/sites' + qs);
             if (!res.ok) throw new Error('sites fetch failed: ' + res.status);
-            const { configured, known, first, last } = await res.json();
+            const { configured, known, first, last, daily } = await res.json();
             extent = { first: first || '', last: last || '' };
             for (const s of [...new Set([...configured, ...known])]) {
                 if (!siteSelect.querySelector(`option[value="${s}"]`)) siteSelect.addItem(s, s);
@@ -52,6 +54,9 @@ nui.registerPage('overview', {
             // Never let the picker offer a window the data cannot answer for.
             rangePicker.setAttribute('min', extent.first);
             rangePicker.setAttribute('max', new Date().toISOString().slice(0, 10));
+            if (rangePicker.setDensity && daily) {
+                rangePicker.setDensity(daily);
+            }
         }
 
         function currentRange() {
@@ -206,6 +211,7 @@ nui.registerPage('overview', {
         // One entry point for every change: persist the view, then reload it.
         function applyAndLoad() {
             syncHash();
+            loadSites().catch(console.error);
             loadSummary().catch(console.error);
         }
 
@@ -264,14 +270,19 @@ nui.registerPage('raw', {
         let allRows = [];
 
         async function loadSites() {
-            const res = await fetch('/analytics/sites');
+            const site = siteSelect.getValue();
+            const qs = site ? `?site=${encodeURIComponent(site)}` : '';
+            const res = await fetch('/analytics/sites' + qs);
             if (!res.ok) return;
-            const { configured, known, first, last } = await res.json();
+            const { configured, known, first, last, daily } = await res.json();
             for (const s of [...new Set([...configured, ...known])]) {
                 if (!siteSelect.querySelector(`option[value="${s}"]`)) siteSelect.addItem(s, s);
             }
             rangePicker.setAttribute('min', first || '');
             rangePicker.setAttribute('max', new Date().toISOString().slice(0, 10));
+            if (rangePicker.setDensity && daily) {
+                rangePicker.setDensity(daily);
+            }
             // An unbounded row limit over an unbounded date range is a full table
             // scan; default the window to the last 30 days so the first paint is bounded.
             if (!rangePicker.getValue().from && !rangePicker.getValue().to) rangePicker.setPreset('30d');

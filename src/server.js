@@ -237,10 +237,11 @@ function start() {
             return;
         }
         if (route === '/analytics/sites') {
+            const site = url.searchParams.get('site');
             sendJson(res, 200, {
                 configured: [...new Set(config.origins.values())],
                 known: analytics.knownSites(db),
-                ...analytics.dataExtent(db)
+                ...analytics.dataExtent(db, site)
             });
             return;
         }
