@@ -143,11 +143,16 @@ Accept this consciously.
   - **Technology** — browsers, languages, connection, screen size, DPR
   - **Realtime** — live SSE ticker (unfiltered; the range does not apply)
   Stat tiles sit above the tabs, since they summarise every panel at once.
-- **Date range** is `<nui-date-range>` (added to nui_wc2 upstream, 2026-10-05):
-  presets (Today / Yesterday / 7d / 30d / All) plus hand-picked from/to native
-  date inputs. The view is mirrored in the URL hash
-  (`#page=overview&from=…&to=…&site=…`) so a reload or a shared link restores it.
-  The picker is bounded by the data extent reported at `/analytics/sites`
+- **Date range** is `<nui-date-range calendar>` (added to nui_wc2 upstream, 2026-10-05):
+  a single button showing the resolved range, opening a month-grid popover with preset
+  chips. Click a start then an end, or drag across days. The two native date inputs
+  stay in the DOM holding the value — calendar mode hides them rather than replacing
+  them, so both modes share the same clamping, event and API.
+  The view is mirrored in the URL hash
+  (`#page=overview&from=…&to=…&site=…`) so a reload, a shared link, or Back/Forward
+  restores it. The hash *is* the query string once the leading `#` is dropped — there
+  is no `?` in it.
+  The calendar is bounded by the data extent reported at `/analytics/sites`
   (`first` / `last`), so it never offers a window the store cannot answer for.
 - Graphs: client-side, no heavy chart framework — hand-rolled SVG in
   `src/ui/js/charts.js`. Decided 2026-10-05; keep it that way until a chart need

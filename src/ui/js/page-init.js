@@ -19,8 +19,12 @@ nui.registerPage('overview', {
         // The range is mirrored in the hash so a view survives a reload or a shared
         // link: `#page=overview&from=…&to=…&site=…`. The router owns `page`; we own the
         // rest, and every writer goes through syncHash() so they cannot disagree.
+        //
+        // The hash IS the query string once the leading `#` is dropped — there is no `?`
+        // in it, so splitting on '?' silently yields empty params and every deep link
+        // restores "all time".
         function readHash() {
-            const p = new URLSearchParams(location.hash.split('?')[1] || '');
+            const p = new URLSearchParams(location.hash.replace(/^#/, ''));
             return { from: p.get('from') || '', to: p.get('to') || '', site: p.get('site') || '' };
         }
 
@@ -205,10 +209,28 @@ nui.registerPage('overview', {
             loadSummary().catch(console.error);
         }
 
-        loadSites().then(() => {
+        // Re-read the URL on every activation. The router only calls show() when the
+        // ROUTE changes, so a hash edited in place — Back/Forward, a pasted link over
+        // an open session — fires hashchange without ever reaching show(). Without this
+        // the data reloads while the picker keeps the old range, and the label
+        // describes a window the numbers are no longer for.
+        // Only writes when the hash actually differs, so this cannot loop with
+        // applyAndLoad() → syncHash() (which uses replaceState and fires nothing).
+        function restoreFromHash() {
             const h = readHash();
+            const cur = rangePicker.getValue();
+            if (h.from === cur.from && h.to === cur.to) return false;
+            rangePicker.setValue({ from: h.from, to: h.to });
+            return true;
+        }
+
+        const onHashChange = () => { restoreFromHash(); loadSummary().catch(console.error); };
+        window.addEventListener('hashchange', onHashChange);
+
+        loadSites().then(() => {
             // Restore before the listeners below are attached — setValue() emits
             // nui-date-range-change, and loading twice on boot is visible.
+            const h = readHash();
             if (h.site) siteSelect.setValue(h.site);
             rangePicker.setValue({ from: h.from, to: h.to });
             siteSelect.addEventListener('nui-change', applyAndLoad);
@@ -220,7 +242,11 @@ nui.registerPage('overview', {
         startTicker();
 
         element.hide = () => { if (sse) { sse.close(); sse = null; } $('#live-dot').classList.remove('on'); };
-        element.show = () => { if (!sse) startTicker(); loadSummary().catch(console.error); };
+        element.show = () => {
+            if (!sse) startTicker();
+            restoreFromHash();
+            loadSummary().catch(console.error);
+        };
     }
 });
 
